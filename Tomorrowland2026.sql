@@ -140,3 +140,70 @@ CREATE TABLE auditoria_presentaciones (
     usuario_db      VARCHAR(100) NOT NULL DEFAULT CURRENT_USER,
     fecha_cambio    TIMESTAMP    NOT NULL DEFAULT NOW()
 );
+
+--  TRIGGERS
+
+
+--TRIGGER 1
+CREATE OR REPLACE FUNCTION fn_validar_aforo_venta()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_cupo_disp INT;
+BEGIN
+    SELECT cupo_disponible INTO v_cupo_disp
+    FROM tipos_boleta
+    WHERE id_tipo = NEW.id_tipo
+    FOR UPDATE;
+
+    IF v_cupo_disp < NEW.cantidad THEN
+        RAISE EXCEPTION
+            'No hay cupo suficiente. Disponibles: %, solicitados: %',
+            v_cupo_disp, NEW.cantidad;
+    END IF;
+
+    UPDATE tipos_boleta
+    SET cupo_disponible = cupo_disponible - NEW.cantidad
+    WHERE id_tipo = NEW.id_tipo;
+
+    -- Genera código QR único
+    NEW.codigo_qr := 'TML-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT), 1, 12));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_validar_aforo_venta
+BEFORE INSERT ON ventas
+FOR EACH ROW EXECUTE FUNCTION fn_validar_aforo_venta();
+
+
+-- TRIGGER 2
+CREATE OR REPLACE FUNCTION fn_auditoria_presentaciones()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.estado IS DISTINCT FROM NEW.estado THEN
+        INSERT INTO auditoria_presentaciones(id_presentacion, campo_modificado, valor_anterior, valor_nuevo)
+        VALUES (NEW.id_presentacion, 'estado', OLD.estado, NEW.estado);
+    END IF;
+
+    IF OLD.fecha_inicio IS DISTINCT FROM NEW.fecha_inicio THEN
+        INSERT INTO auditoria_presentaciones(id_presentacion, campo_modificado, valor_anterior, valor_nuevo)
+        VALUES (NEW.id_presentacion, 'fecha_inicio', OLD.fecha_inicio::TEXT, NEW.fecha_inicio::TEXT);
+    END IF;
+
+    IF OLD.fecha_fin IS DISTINCT FROM NEW.fecha_fin THEN
+        INSERT INTO auditoria_presentaciones(id_presentacion, campo_modificado, valor_anterior, valor_nuevo)
+        VALUES (NEW.id_presentacion, 'fecha_fin', OLD.fecha_fin::TEXT, NEW.fecha_fin::TEXT);
+    END IF;
+
+    IF OLD.id_escenario IS DISTINCT FROM NEW.id_escenario THEN
+        INSERT INTO auditoria_presentaciones(id_presentacion, campo_modificado, valor_anterior, valor_nuevo)
+        VALUES (NEW.id_presentacion, 'id_escenario', OLD.id_escenario::TEXT, NEW.id_escenario::TEXT);
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_auditoria_presentaciones
+AFTER UPDATE ON presentaciones
+FOR EACH ROW EXECUTE FUNCTION fn_auditoria_presentaciones();
