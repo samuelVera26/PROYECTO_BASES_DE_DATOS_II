@@ -395,3 +395,48 @@ INSERT INTO ventas (id_asistente, id_tipo, id_presentacion, cantidad, precio_uni
 (33, 1, 34, 1,  850000,  850000,  'App móvil',             'Pagado'),
 (34, 3, 13, 1, 4500000, 4500000,  'Online',                'Pagado'),
 (35, 5, 30, 1,  420000,  420000,  'Online',                'Pagado');
+
+
+SELECT
+    tb.nombre                                            AS tipo_boleta,
+    tb.precio                                            AS precio_unitario_cop,
+    tb.cupo_maximo,
+    tb.cupo_maximo - tb.cupo_disponible                  AS boletas_vendidas,
+    ROUND(((tb.cupo_maximo - tb.cupo_disponible)::NUMERIC / tb.cupo_maximo) * 100, 2) AS pct_ocupacion,
+    SUM(v.total)                                         AS ingresos_totales_cop
+FROM tipos_boleta tb
+LEFT JOIN ventas v ON v.id_tipo = tb.id_tipo AND v.estado_pago = 'Pagado'
+GROUP BY tb.id_tipo, tb.nombre, tb.precio, tb.cupo_maximo, tb.cupo_disponible
+ORDER BY ingresos_totales_cop DESC NULLS LAST;
+
+
+-- CONSULTA 2
+SELECT
+    a.nombre_artistico                   AS artista,
+    a.subgenero,
+    COUNT(p.id_presentacion)             AS total_presentaciones,
+    STRING_AGG(DISTINCT e.nombre, ', ') AS escenarios,
+    (SELECT monto_base FROM contratos c
+     WHERE c.id_artista = a.id_artista
+     ORDER BY fecha_firma DESC LIMIT 1)  AS monto_contrato_cop
+FROM artistas a
+JOIN presentaciones p ON p.id_artista = a.id_artista
+JOIN escenarios e     ON e.id_escenario = p.id_escenario
+GROUP BY a.id_artista, a.nombre_artistico, a.subgenero
+ORDER BY total_presentaciones DESC;
+
+
+-- CONSULTA 3
+SELECT
+    a.nombres || ' ' || a.apellidos     AS asistente,
+    a.ciudad_origen,
+    e.nombre                            AS escenario_comprado,
+    COUNT(v.id_venta)                   AS total_compras,
+    SUM(v.total)                        AS gasto_total_cop
+FROM asistentes a
+JOIN ventas v          ON v.id_asistente    = a.id_asistente
+JOIN presentaciones p  ON p.id_presentacion = v.id_presentacion
+JOIN escenarios e      ON e.id_escenario    = p.id_escenario
+WHERE v.estado_pago = 'Pagado'
+GROUP BY a.id_asistente, a.nombres, a.apellidos, a.ciudad_origen, e.nombre
+ORDER BY gasto_total_cop DESC;
