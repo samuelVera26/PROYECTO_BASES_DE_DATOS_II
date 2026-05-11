@@ -141,6 +141,24 @@ CREATE TABLE auditoria_presentaciones (
     fecha_cambio    TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
+
+--  ÍNDICES BÁSICOS
+
+CREATE INDEX idx_artistas_nombre        ON artistas(nombre_artistico);
+CREATE INDEX idx_contratos_artista      ON contratos(id_artista);
+CREATE INDEX idx_contratos_estado       ON contratos(estado);
+CREATE INDEX idx_presentaciones_artista ON presentaciones(id_artista);
+CREATE INDEX idx_presentaciones_escen   ON presentaciones(id_escenario);
+CREATE INDEX idx_presentaciones_fecha   ON presentaciones(fecha_inicio);
+CREATE INDEX idx_ventas_asistente       ON ventas(id_asistente);
+CREATE INDEX idx_ventas_tipo            ON ventas(id_tipo);
+CREATE INDEX idx_ventas_presentacion    ON ventas(id_presentacion);
+CREATE INDEX idx_ventas_fecha           ON ventas(fecha_venta);
+CREATE INDEX idx_ventas_estado          ON ventas(estado_pago);
+CREATE INDEX idx_asistentes_doc         ON asistentes(documento_id);
+CREATE INDEX idx_staff_escenario        ON staff(id_escenario);
+CREATE INDEX idx_staff_area             ON staff(area);
+
 --  TRIGGERS
 
 
@@ -208,6 +226,47 @@ CREATE TRIGGER trg_auditoria_presentaciones
 AFTER UPDATE ON presentaciones
 FOR EACH ROW EXECUTE FUNCTION fn_auditoria_presentaciones();
 
+-- PROCEDIMIENTO ALMACENADO
+
+CREATE OR REPLACE PROCEDURE sp_reporte_ventas_dia_escenario(
+    p_fecha_inicio DATE DEFAULT NULL,
+    p_fecha_fin    DATE DEFAULT NULL
+)
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_fecha_ini DATE := COALESCE(p_fecha_inicio, CURRENT_DATE - INTERVAL '7 days');
+    v_fecha_fin DATE := COALESCE(p_fecha_fin, CURRENT_DATE);
+    r           RECORD;  -- ← esto faltaba
+BEGIN
+    RAISE NOTICE '____________________________';
+    RAISE NOTICE 'REPORTE VENTAS – Tomorrowland Bogotá';
+    RAISE NOTICE 'Período: % al %', v_fecha_ini, v_fecha_fin;
+    RAISE NOTICE '____________________________';
+
+    FOR r IN
+        SELECT
+            DATE(v.fecha_venta)          AS dia,
+            e.nombre                     AS escenario,
+            tb.nombre                    AS tipo_boleta,
+            COUNT(v.id_venta)            AS total_transacciones,
+            SUM(v.cantidad)              AS boletas_vendidas,
+            SUM(v.total)                 AS ingresos_cop
+        FROM ventas v
+        JOIN tipos_boleta tb  ON tb.id_tipo        = v.id_tipo
+        JOIN presentaciones p ON p.id_presentacion = v.id_presentacion
+        JOIN escenarios e     ON e.id_escenario     = p.id_escenario
+        WHERE v.estado_pago = 'Pagado'
+          AND DATE(v.fecha_venta) BETWEEN v_fecha_ini AND v_fecha_fin
+        GROUP BY 1, 2, 3
+        ORDER BY 1, 6 DESC
+    LOOP
+        RAISE NOTICE 'Día: % | Escenario: % | Tipo: % | Boletas: % | Ingresos: $%',
+            r.dia, r.escenario, r.tipo_boleta, r.boletas_vendidas, r.ingresos_cop;
+    END LOOP;
+
+    RAISE NOTICE '________________';
+END;
+$$;
 
 -- 6. DATOS DE PRUEBA
 -- ESCENARIOS (5)
