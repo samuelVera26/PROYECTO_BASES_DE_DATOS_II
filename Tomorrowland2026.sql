@@ -140,3 +140,20 @@ CREATE TABLE auditoria_presentaciones (
     usuario_db      VARCHAR(100) NOT NULL DEFAULT CURRENT_USER,
     fecha_cambio    TIMESTAMP    NOT NULL DEFAULT NOW()
 );
+
+--  ÍNDICES BÁSICOS
+
+CREATE INDEX idx_artistas_nombre        ON artistas(nombre_artistico);
+CREATE INDEX idx_contratos_artista      ON contratos(id_artista);
+CREATE INDEX idx_contratos_estado       ON contratos(estado);
+CREATE INDEX idx_presentaciones_artista ON presentaciones(id_artista);
+CREATE INDEX idx_presentaciones_escen   ON presentaciones(id_escenario);
+CREATE INDEX idx_presentaciones_fecha   ON presentaciones(fecha_inicio);
+CREATE INDEX idx_ventas_asistente       ON ventas(id_asistente);
+CREATE INDEX idx_ventas_tipo            ON ventas(id_tipo);
+CREATE INDEX idx_ventas_presentacion    ON ventas(id_presentacion);
+CREATE INDEX idx_ventas_fecha           ON ventas(fecha_venta);
+CREATE INDEX idx_ventas_estado          ON ventas(estado_pago);
+CREATE INDEX idx_asistentes_doc         ON asistentes(documento_id);
+CREATE INDEX idx_staff_escenario        ON staff(id_escenario);
+CREATE INDEX idx_staff_area             ON staff(area);
